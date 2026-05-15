@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like } from 'typeorm';
+import { Repository, Like, In } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { SysUser } from './entities/user.entity';
 import { SysRole } from '../role/entities/role.entity';
@@ -100,7 +100,9 @@ export class UserService {
     });
     if (!user) throw new NotFoundException('用户不存在');
 
-    const roles = await this.roleRepo.findByIds(roleIds);
+    const roles = roleIds.length > 0
+      ? await this.roleRepo.findBy({ id: In(roleIds) })
+      : [];
     user.roles = roles;
     await this.userRepo.save(user);
     return { message: '角色分配成功' };

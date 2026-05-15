@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsObject } from 'class-validator';
 
 export class CreateBookmarkDto {
   @ApiProperty({ description: '书签名称' })
@@ -12,6 +12,8 @@ export class CreateBookmarkDto {
   description?: string;
 
   @ApiProperty({ description: '视角配置' })
+  @IsNotEmpty()
+  @IsObject()
   view: any;
 
   @ApiPropertyOptional({ description: '缩略图URL' })
@@ -33,6 +35,7 @@ export class UpdateBookmarkDto {
 
   @ApiPropertyOptional({ description: '视角配置' })
   @IsOptional()
+  @IsObject()
   view?: any;
 
   @ApiPropertyOptional({ description: '缩略图URL' })
