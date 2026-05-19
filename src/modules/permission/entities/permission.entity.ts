@@ -11,7 +11,7 @@ export class SysPermission {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', default: 0, comment: '父级ID, 0为顶级' })
+  @Column({ name: 'parentId', type: 'int', default: 0, comment: '父级ID, 0为顶级' })
   parentId: number;
 
   @Column({ length: 50, comment: '权限名称' })
@@ -29,7 +29,7 @@ export class SysPermission {
   @Column({ length: 50, nullable: true, comment: '图标' })
   icon: string;
 
-  @Column({ type: 'int', default: 0, comment: '排序' })
+  @Column({ name: 'sortOrder', type: 'int', default: 0, comment: '排序' })
   sortOrder: number;
 
   @Column({ type: 'smallint', default: 1, comment: '状态: 1启用 0禁用' })

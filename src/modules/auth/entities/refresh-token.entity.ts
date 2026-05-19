@@ -12,15 +12,15 @@ export class SysRefreshToken {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', comment: '用户ID' })
+  @Column({ name: 'userId', type: 'int', comment: '用户ID' })
   userId: number;
 
   @Column({ length: 500, comment: '刷新令牌' })
   token: string;
 
-  @Column({ type: 'timestamp', comment: '过期时间' })
+  @Column({ name: 'expiresAt', type: 'timestamp', comment: '过期时间' })
   expiresAt: Date;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'createdAt', comment: '创建时间' })
   createdAt: Date;
 }

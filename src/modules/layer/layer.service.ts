@@ -64,20 +64,26 @@ export class LayerService {
   }
 
   async getAccessibleLayers(userId: number, roles: any[]) {
-    const roleIds = roles.map((r) => r.id);
+    const roleIds = (roles || []).map((r) => r.id);
     if (roleIds.length === 0) return [];
 
     // 查询角色可访问的图层
-    const layers = await this.layerRepo.query(
-      `SELECT l.*, rl.can_read as "canRead", rl.can_edit as "canEdit"
-       FROM map_layer l
-       INNER JOIN sys_role_layer rl ON rl.layer_id = l.id
-       WHERE rl.role_id = ANY($1) AND l.status = 1
-       ORDER BY l.group_id ASC, l.sort_order ASC`,
-      [roleIds],
-    );
+    try {
+      const layers = await this.layerRepo.query(
+        `SELECT l.*, rl.can_read as "canRead", rl.can_edit as "canEdit"
+         FROM map_layer l
+         INNER JOIN sys_role_layer rl ON rl.layer_id = l.id
+         WHERE rl.role_id = ANY($1) AND l.status = 1
+         ORDER BY l.group_id ASC, l.sort_order ASC`,
+        [roleIds],
+      );
 
-    return layers;
+      return layers;
+    } catch (e) {
+      // sys_role_layer 表可能不存在或无数据，降级返回全部启用图层
+      console.warn('查询角色图层权限失败，降级返回全部图层:', e.message);
+      return this.layerRepo.find({ where: { status: 1 }, order: { groupId: 'ASC', sortOrder: 'ASC' } });
+    }
   }
 
   async exportConfig() {

@@ -71,16 +71,20 @@ export class MarkerService {
   }
 
   async getAccessibleMarkers(userId: number, roles: any[]) {
-    const roleIds = roles.map((r) => r.id);
+    const roleIds = (roles || []).map((r) => r.id);
 
     // 获取用户角色可访问的图层 ID
     let accessibleLayerIds: number[] = [];
     if (roleIds.length > 0) {
-      const result = await this.markerRepo.query(
-        `SELECT DISTINCT layer_id FROM sys_role_layer WHERE role_id = ANY($1) AND can_read = true`,
-        [roleIds],
-      );
-      accessibleLayerIds = result.map((r: any) => r.layer_id).filter(Boolean);
+      try {
+        const result = await this.markerRepo.query(
+          `SELECT DISTINCT layer_id FROM sys_role_layer WHERE role_id = ANY($1) AND can_read = true`,
+          [roleIds],
+        );
+        accessibleLayerIds = result.map((r: any) => r.layer_id).filter(Boolean);
+      } catch (e) {
+        console.warn('查询角色图层权限失败:', e.message);
+      }
     }
 
     // 查询：用户自己的标记 + 角色可访问图层的标记

@@ -14,7 +14,7 @@ export class SysLog {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', nullable: true, comment: '用户ID' })
+  @Column({ name: 'userId', type: 'int', nullable: true, comment: '用户ID' })
   userId: number;
 
   @Column({ length: 50, nullable: true, comment: '用户名' })
@@ -35,15 +35,15 @@ export class SysLog {
   @Column({ length: 50, nullable: true, comment: 'IP地址' })
   ip: string;
 
-  @Column({ type: 'text', nullable: true, comment: '请求体' })
+  @Column({ name: 'requestBody', type: 'text', nullable: true, comment: '请求体' })
   requestBody: string;
 
-  @Column({ type: 'int', nullable: true, comment: '响应状态码' })
+  @Column({ name: 'responseCode', type: 'int', nullable: true, comment: '响应状态码' })
   responseCode: number;
 
   @Column({ type: 'int', nullable: true, comment: '耗时(ms)' })
   duration: number;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'createdAt', comment: '创建时间' })
   createdAt: Date;
 }

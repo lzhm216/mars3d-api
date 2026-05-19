@@ -11,7 +11,7 @@ export class MapMarker {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', comment: '所属用户ID' })
+  @Column({ name: 'userId', type: 'int', comment: '所属用户ID' })
   userId: number;
 
   @Column({ length: 100, nullable: true, comment: '标记名称' })
@@ -32,15 +32,15 @@ export class MapMarker {
   @Column({ type: 'jsonb', nullable: true, comment: '自定义属性' })
   properties: any;
 
-  @Column({ type: 'int', nullable: true, comment: '归属图层ID' })
+  @Column({ name: 'layerId', type: 'int', nullable: true, comment: '归属图层ID' })
   layerId: number;
 
   @Column({ type: 'smallint', default: 1, comment: '状态: 1启用 0禁用' })
   status: number;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'createdAt', comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn({ comment: '更新时间' })
+  @UpdateDateColumn({ name: 'updatedAt', comment: '更新时间' })
   updatedAt: Date;
 }

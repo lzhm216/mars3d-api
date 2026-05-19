@@ -35,10 +35,10 @@ export class SysUser {
   @Column({ type: 'smallint', default: 1, comment: '状态: 1启用 0禁用' })
   status: number;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'createdAt', comment: '创建时间' })
   createdAt: Date;
 
-  @UpdateDateColumn({ comment: '更新时间' })
+  @UpdateDateColumn({ name: 'updatedAt', comment: '更新时间' })
   updatedAt: Date;
 
   @ManyToMany(() => SysRole, (role) => role.users, { eager: true })

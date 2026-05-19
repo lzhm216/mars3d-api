@@ -10,7 +10,7 @@ export class MapBookmark {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ type: 'int', comment: '所属用户ID' })
+  @Column({ name: 'userId', type: 'int', comment: '所属用户ID' })
   userId: number;
 
   @Column({ length: 100, comment: '书签名称' })
@@ -25,6 +25,6 @@ export class MapBookmark {
   @Column({ length: 255, nullable: true, comment: '缩略图URL' })
   thumbnail: string;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'createdAt', comment: '创建时间' })
   createdAt: Date;
 }

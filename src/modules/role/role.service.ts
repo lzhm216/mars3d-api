@@ -33,7 +33,6 @@ export class RoleService {
     qb.orderBy('role.id', 'ASC');
     qb.skip((page - 1) * pageSize).take(pageSize);
     qb.leftJoinAndSelect('role.permissions', 'permissions');
-    qb.leftJoinAndSelect('role.layers', 'layers');
 
     const [list, total] = await qb.getManyAndCount();
     return new PageResult(list, total, page, pageSize);
@@ -42,7 +41,7 @@ export class RoleService {
   async findOne(id: number) {
     const role = await this.roleRepo.findOne({
       where: { id },
-      relations: ['permissions', 'layers'],
+      relations: ['permissions'],
     });
     if (!role) throw new NotFoundException('角色不存在');
     return role;
@@ -81,16 +80,13 @@ export class RoleService {
     });
     if (!role) throw new NotFoundException('角色不存在');
 
-    role.permissions = await this.permRepo.findByIds(permissionIds);
+    role.permissions = await this.permRepo.findBy({ id: In(permissionIds) });
     await this.roleRepo.save(role);
     return { message: '权限分配成功' };
   }
 
   async assignLayers(roleId: number, dto: AssignLayersDto) {
-    const role = await this.roleRepo.findOne({
-      where: { id: roleId },
-      relations: ['layers'],
-    });
+    const role = await this.roleRepo.findOne({ where: { id: roleId } });
     if (!role) throw new NotFoundException('角色不存在');
 
     // 通过原生查询管理多对多关系中的额外字段
@@ -111,10 +107,7 @@ export class RoleService {
   }
 
   async getRoleLayers(roleId: number) {
-    const role = await this.roleRepo.findOne({
-      where: { id: roleId },
-      relations: ['layers'],
-    });
+    const role = await this.roleRepo.findOne({ where: { id: roleId } });
     if (!role) throw new NotFoundException('角色不存在');
 
     // 查询关联的权限信息

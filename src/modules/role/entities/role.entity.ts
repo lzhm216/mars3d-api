@@ -8,7 +8,6 @@ import {
 } from 'typeorm';
 import { SysUser } from '../../user/entities/user.entity';
 import { SysPermission } from '../../permission/entities/permission.entity';
-import { MapLayer } from '../../layer/entities/layer.entity';
 
 @Entity('sys_role')
 export class SysRole {
@@ -27,7 +26,7 @@ export class SysRole {
   @Column({ type: 'smallint', default: 1, comment: '状态: 1启用 0禁用' })
   status: number;
 
-  @CreateDateColumn({ comment: '创建时间' })
+  @CreateDateColumn({ name: 'createdAt', comment: '创建时间' })
   createdAt: Date;
 
   @ManyToMany(() => SysUser, (user) => user.roles)
@@ -40,12 +39,4 @@ export class SysRole {
     inverseJoinColumn: { name: 'permission_id', referencedColumnName: 'id' },
   })
   permissions: SysPermission[];
-
-  @ManyToMany(() => MapLayer, (layer) => layer.roles)
-  @JoinTable({
-    name: 'sys_role_layer',
-    joinColumn: { name: 'role_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'layer_id', referencedColumnName: 'id' },
-  })
-  layers: MapLayer[];
 }

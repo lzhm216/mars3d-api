@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsNotEmpty, IsObject } from 'class-validator';
 
 export class CreateMarkerDto {
   @ApiPropertyOptional({ description: '标记名称' })
@@ -17,14 +17,18 @@ export class CreateMarkerDto {
   type: string;
 
   @ApiProperty({ description: 'GeoJSON geometry' })
+  @IsNotEmpty()
+  @IsObject()
   geometry: any;
 
   @ApiPropertyOptional({ description: '样式配置' })
   @IsOptional()
+  @IsObject()
   style?: any;
 
   @ApiPropertyOptional({ description: '自定义属性' })
   @IsOptional()
+  @IsObject()
   properties?: any;
 
   @ApiPropertyOptional({ description: '归属图层ID' })

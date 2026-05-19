@@ -2,6 +2,7 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { SysUser } from '../modules/user/entities/user.entity';
 import { SysRole } from '../modules/role/entities/role.entity';
+import { SysRoleLayer } from '../modules/role/entities/role-layer.entity';
 import { SysPermission } from '../modules/permission/entities/permission.entity';
 import { MapLayer } from '../modules/layer/entities/layer.entity';
 import { MapMarker } from '../modules/marker/entities/marker.entity';
@@ -17,7 +18,7 @@ async function seed() {
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'mars3d',
-    entities: [SysUser, SysRole, SysPermission, MapLayer, MapMarker, MapBookmark, SysLog, SysRefreshToken],
+    entities: [SysUser, SysRole, SysRoleLayer, SysPermission, MapLayer, MapMarker, MapBookmark, SysLog, SysRefreshToken],
     synchronize: true,
   });
 
