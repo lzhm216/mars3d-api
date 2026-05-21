@@ -1,10 +1,13 @@
 import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
+import * as path from 'path';
 import { SysUser } from '../modules/user/entities/user.entity';
 import { SysRole } from '../modules/role/entities/role.entity';
 import { SysRoleLayer } from '../modules/role/entities/role-layer.entity';
 import { SysPermission } from '../modules/permission/entities/permission.entity';
 import { MapLayer } from '../modules/layer/entities/layer.entity';
+import { MapLayerGroup } from '../modules/layer/entities/layer-group.entity';
 import { MapMarker } from '../modules/marker/entities/marker.entity';
 import { MapBookmark } from '../modules/bookmark/entities/bookmark.entity';
 import { SysLog } from '../modules/log/entities/log.entity';
@@ -18,7 +21,7 @@ async function seed() {
     username: process.env.DB_USERNAME || 'postgres',
     password: process.env.DB_PASSWORD || 'postgres',
     database: process.env.DB_DATABASE || 'mars3d',
-    entities: [SysUser, SysRole, SysRoleLayer, SysPermission, MapLayer, MapMarker, MapBookmark, SysLog, SysRefreshToken],
+    entities: [SysUser, SysRole, SysRoleLayer, SysPermission, MapLayer, MapLayerGroup, MapMarker, MapBookmark, SysLog, SysRefreshToken],
     synchronize: true,
   });
 
@@ -82,62 +85,218 @@ async function seed() {
   // 检查是否已初始化
   const existingCount = await permRepo.count();
   if (existingCount > 0) {
-    console.log(`权限表已有 ${existingCount} 条数据，跳过种子数据初始化`);
-    await dataSource.destroy();
-    return;
+    console.log(`权限表已有 ${existingCount} 条数据，跳过权限和角色数据初始化`);
+  } else {
+    // 批量插入权限
+    const savedPerms: SysPermission[] = [];
+    for (const permData of permissions) {
+      const perm = permRepo.create(permData);
+      const saved = await permRepo.save(perm);
+      savedPerms.push(saved);
+    }
+    console.log(`已创建 ${savedPerms.length} 个权限节点`);
+
+    // ==================== 2. 初始化角色 ====================
+    const adminRole = roleRepo.create({
+      name: '超级管理员',
+      code: 'admin',
+      description: '拥有全部权限',
+      permissions: savedPerms,
+    });
+    await roleRepo.save(adminRole);
+
+    const editorRole = roleRepo.create({
+      name: '编辑者',
+      code: 'editor',
+      description: '可编辑地图数据',
+      permissions: savedPerms.filter((p) =>
+        !p.code.includes('delete') && !p.code.includes('system:user') && !p.code.includes('system:role') && !p.code.includes('system:permission')
+      ),
+    });
+    await roleRepo.save(editorRole);
+
+    const viewerRole = roleRepo.create({
+      name: '查看者',
+      code: 'viewer',
+      description: '仅查看权限',
+      permissions: savedPerms.filter((p) => p.code.endsWith(':list')),
+    });
+    await roleRepo.save(viewerRole);
+
+    console.log('已创建 3 个默认角色: admin, editor, viewer');
+
+    // ==================== 3. 初始化管理员用户 ====================
+    const adminUser = userRepo.create({
+      username: 'admin',
+      password: await bcrypt.hash('admin123', 10),
+      nickname: '超级管理员',
+      email: 'admin@mars3d.com',
+      roles: [adminRole],
+    });
+    await userRepo.save(adminUser);
+
+    console.log('已创建管理员用户: admin / admin123');
   }
 
-  // 批量插入权限
-  const savedPerms: SysPermission[] = [];
-  for (const permData of permissions) {
-    const perm = permRepo.create(permData);
-    const saved = await permRepo.save(perm);
-    savedPerms.push(saved);
-  }
-  console.log(`已创建 ${savedPerms.length} 个权限节点`);
+  // ==================== 4. 初始化图层分组与图层数据 ====================
+  const layerGroupRepo = dataSource.getRepository(MapLayerGroup);
+  const layerRepo = dataSource.getRepository(MapLayer);
 
-  // ==================== 2. 初始化角色 ====================
-  const adminRole = roleRepo.create({
-    name: '超级管理员',
-    code: 'admin',
-    description: '拥有全部权限',
-    permissions: savedPerms,
-  });
-  await roleRepo.save(adminRole);
+  console.log('正在清空旧的图层与分组数据...');
+  await layerRepo.createQueryBuilder().delete().execute();
+  await layerGroupRepo.createQueryBuilder().delete().execute();
 
-  const editorRole = roleRepo.create({
-    name: '编辑者',
-    code: 'editor',
-    description: '可编辑地图数据',
-    permissions: savedPerms.filter((p) =>
-      !p.code.includes('delete') && !p.code.includes('system:user') && !p.code.includes('system:role') && !p.code.includes('system:permission')
-    ),
-  });
-  await roleRepo.save(editorRole);
+  console.log('开始从 config.json 导入全部地图服务及专题图层...');
 
-  const viewerRole = roleRepo.create({
-    name: '查看者',
-    code: 'viewer',
-    description: '仅查看权限',
-    permissions: savedPerms.filter((p) => p.code.endsWith(':list')),
-  });
-  await roleRepo.save(viewerRole);
+    // 4.1 创建三个顶层业务分组
+    const groupBasemap = layerGroupRepo.create({ name: '地图底图', sortOrder: 1 });
+    const groupLayer = layerGroupRepo.create({ name: '专题业务图层', sortOrder: 2 });
+    const groupTerrain = layerGroupRepo.create({ name: '地形数据服务', sortOrder: 3 });
+    const savedGroups = await layerGroupRepo.save([groupBasemap, groupLayer, groupTerrain]);
+    console.log('创建默认图层业务大组完成:', savedGroups.map(g => ({ id: g.id, name: g.name })));
 
-  console.log('已创建 3 个默认角色: admin, editor, viewer');
+    const basemapGroupId = savedGroups.find(g => g.name === '地图底图')?.id || 1;
+    const layerGroupId = savedGroups.find(g => g.name === '专题业务图层')?.id || 2;
+    const terrainGroupId = savedGroups.find(g => g.name === '地形数据服务')?.id || 3;
 
-  // ==================== 3. 初始化管理员用户 ====================
-  const adminUser = userRepo.create({
-    username: 'admin',
-    password: await bcrypt.hash('admin123', 10),
-    nickname: '超级管理员',
-    email: 'admin@mars3d.com',
-    roles: [adminRole],
-  });
-  await userRepo.save(adminUser);
+    try {
+      const configPath = path.resolve('d:/code/mars3d/mars3d-vue-project/public/config/config.json');
+      if (fs.existsSync(configPath)) {
+        let content = fs.readFileSync(configPath, 'utf8');
+        if (content.charCodeAt(0) === 0xfeff) {
+          content = content.slice(1);
+        }
+        const configJson = JSON.parse(content);
 
-  console.log('已创建管理员用户: admin / admin123');
+        // 用于保存临时记录
+        const layersToInsert: any[] = [];
+        const pidMap = new Map<number, number>(); // 存储图层 ID -> 父级 ID
+
+        // 4.2 收集地形服务
+        if (configJson.terrain) {
+          const t = configJson.terrain;
+          layersToInsert.push({
+            id: 1,
+            name: '全球地形',
+            type: 'terrain',
+            url: t.url || '',
+            category: 'terrain',
+            show: t.show ?? true,
+            groupId: terrainGroupId,
+            status: 1,
+            sortOrder: 1,
+            config: { url: t.url, show: t.show, clip: t.clip }
+          });
+        }
+
+        // 4.3 收集底图服务
+        if (configJson.basemaps && Array.isArray(configJson.basemaps)) {
+          let autoId = 10000;
+          for (const item of configJson.basemaps) {
+            const lid = item.id || ++autoId;
+            const configData = { ...item };
+            delete configData.id;
+            delete configData.pid;
+            delete configData.name;
+            delete configData.type;
+            delete configData.show;
+
+            layersToInsert.push({
+              id: lid,
+              name: item.name || '未命名底图',
+              type: item.type || 'xyz',
+              url: item.url || '',
+              category: 'basemap',
+              show: item.show ?? false,
+              groupId: basemapGroupId,
+              status: 1,
+              sortOrder: item.sortOrder || 0,
+              config: configData
+            });
+
+            if (item.pid) {
+              // 存储子图层 id -> 父图层 config id 的映射
+              pidMap.set(lid, item.pid);
+            }
+          }
+        }
+
+        // 4.4 收集专题图层服务
+        if (configJson.layers && Array.isArray(configJson.layers)) {
+          let autoId = 20000;
+          for (const item of configJson.layers) {
+            const lid = item.id || ++autoId;
+            const configData = { ...item };
+            delete configData.id;
+            delete configData.pid;
+            delete configData.name;
+            delete configData.type;
+            delete configData.show;
+
+            layersToInsert.push({
+              id: lid,
+              name: item.name || '未命名图层',
+              type: item.type || 'geojson',
+              url: item.url || '',
+              category: 'layer',
+              show: item.show ?? false,
+              groupId: layerGroupId,
+              status: 1,
+              sortOrder: item.sortOrder || 0,
+              config: configData
+            });
+
+            if (item.pid) {
+              // 存储子图层 id -> 父图层 config id 的映射
+              pidMap.set(lid, item.pid);
+            }
+          }
+        }
+
+        // 4.5 第一阶段：插入所有图层，此时 pid 置为 null 避免外键约束报错
+        // 使用 QueryBuilder.insert() 确保显式设置的 id 被保留
+        // (TypeORM 的 save() 对 @PrimaryGeneratedColumn 可能忽略显式 id)
+        console.log(`第一阶段：插入所有图层实体，共 ${layersToInsert.length} 条记录...`);
+        for (const raw of layersToInsert) {
+          await layerRepo.createQueryBuilder()
+            .insert()
+            .into(MapLayer)
+            .values({ ...raw, pid: null })
+            .orIgnore()
+            .execute();
+        }
+
+        // 4.6 第二阶段：还原并建立父子关系 (pid)
+        console.log('第二阶段：还原并建立父子图层关系 (pid)...');
+        // 获取所有数据库中存在的图层 id
+        const dbLayers = await layerRepo.find({ select: ['id'] });
+        const dbIds = new Set(dbLayers.map(l => l.id));
+
+        for (const [childId, parentId] of pidMap.entries()) {
+          // 确保父子图层都在数据库中存在，才更新 pid
+          if (dbIds.has(childId) && dbIds.has(parentId)) {
+            await layerRepo.update(childId, { pid: parentId });
+          } else {
+            if (!dbIds.has(parentId)) {
+              console.warn(`跳过无效的父图层关联: 子图层 ${childId} 的 pid (${parentId}) 在数据库中不存在`);
+            }
+            if (!dbIds.has(childId)) {
+              console.warn(`跳过无效的子图层: 子图层 ${childId} 在数据库中不存在`);
+            }
+          }
+        }
+
+        // 4.7 重置 PG 图层自增主键序列
+        await dataSource.query(`SELECT setval(pg_get_serial_sequence('map_layer', 'id'), COALESCE(MAX(id), 1)) FROM map_layer`);
+        console.log('图层表主键自增序列修正完毕！');
+      } else {
+        console.warn(`未能在路径 ${configPath} 找到 config.json，跳过图层种子导入`);
+      }
+    } catch (e) {
+      console.error('导入 config.json 失败:', e.message);
+    }
+
   console.log('种子数据初始化完成！');
-
   await dataSource.destroy();
 }
 

@@ -38,11 +38,38 @@ export class LayerController {
     return this.layerService.getAccessibleLayers(user.id, user.roles);
   }
 
+  @Get('config')
+  @ApiOperation({ summary: '获取当前用户鉴权后的地图配置' })
+  getDynamicConfig(@CurrentUser() user: any) {
+    return this.layerService.getDynamicConfig(user.id, user.roles);
+  }
+
   @Get('config/export')
   @RequirePermission('map:layer:list')
   @ApiOperation({ summary: '导出图层配置（兼容 config.json）' })
   exportConfig() {
     return this.layerService.exportConfig();
+  }
+
+  @Get('groups')
+  @RequirePermission('map:layer:list')
+  @ApiOperation({ summary: '获取图层分组列表' })
+  findGroups() {
+    return this.layerService.findGroups();
+  }
+
+  @Post('groups')
+  @RequirePermission('map:layer:create')
+  @ApiOperation({ summary: '创建图层分组' })
+  createGroup(@Body() dto: { name: string; sortOrder?: number }) {
+    return this.layerService.createGroup(dto.name, dto.sortOrder);
+  }
+
+  @Delete('groups/:id')
+  @RequirePermission('map:layer:delete')
+  @ApiOperation({ summary: '删除图层分组' })
+  removeGroup(@Param('id') id: number) {
+    return this.layerService.removeGroup(+id);
   }
 
   @Get(':id')

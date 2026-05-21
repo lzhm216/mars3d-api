@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { SysRole } from './entities/role.entity';
+import { SysRoleLayer } from './entities/role-layer.entity';
 import { SysPermission } from '../permission/entities/permission.entity';
 import { MapLayer } from '../layer/entities/layer.entity';
 import { CreateRoleDto, UpdateRoleDto, AssignLayersDto } from './dto/create-role.dto';
@@ -20,6 +21,8 @@ export class RoleService {
     private readonly permRepo: Repository<SysPermission>,
     @InjectRepository(MapLayer)
     private readonly layerRepo: Repository<MapLayer>,
+    @InjectRepository(SysRoleLayer)
+    private readonly roleLayerRepo: Repository<SysRoleLayer>,
   ) {}
 
   async findAll(query: PageQueryDto & { keyword?: string }) {
@@ -89,19 +92,40 @@ export class RoleService {
     const role = await this.roleRepo.findOne({ where: { id: roleId } });
     if (!role) throw new NotFoundException('角色不存在');
 
-    // 通过原生查询管理多对多关系中的额外字段
-    const manager = this.roleRepo.manager;
+    // 空数组直接清空关联并返回
+    if (!dto.layers || dto.layers.length === 0) {
+      await this.roleLayerRepo.delete({ role: { id: roleId } });
+      return { message: '图层权限已清空' };
+    }
+
+    // 校验所有 layerId 在 map_layer 表中真实存在，避免 FK 约束报错
+    const requestedIds = dto.layers.map(item => item.layerId);
+    const existingLayers = await this.layerRepo.find({
+      where: { id: In(requestedIds) },
+      select: ['id'],
+    });
+    const existingIds = new Set(existingLayers.map(l => l.id));
+    const invalidIds = requestedIds.filter(id => !existingIds.has(id));
+    if (invalidIds.length > 0) {
+      throw new NotFoundException(`以下图层ID不存在: ${invalidIds.join(', ')}`);
+    }
 
     // 先删除旧的关联
-    await manager.query('DELETE FROM sys_role_layer WHERE role_id = $1', [roleId]);
+    await this.roleLayerRepo.delete({ role: { id: roleId } });
 
-    // 插入新的关联
-    for (const item of dto.layers) {
-      await manager.query(
-        'INSERT INTO sys_role_layer (role_id, layer_id, can_read, can_edit) VALUES ($1, $2, $3, $4)',
-        [roleId, item.layerId, item.canRead, item.canEdit],
-      );
-    }
+    // 使用参数化原始 SQL 批量插入，彻底绕过 TypeORM 实体映射层
+    // TypeORM 的 save()/insert().values() 对关系对象映射在部分版本中行为不一致
+    const params: any[] = [];
+    const placeholders = dto.layers.map((item, idx) => {
+      const offset = idx * 4;
+      params.push(roleId, item.layerId, item.canRead ?? true, item.canEdit ?? false);
+      return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4})`;
+    }).join(', ');
+
+    await this.roleLayerRepo.query(
+      `INSERT INTO sys_role_layer (role_id, layer_id, can_read, can_edit) VALUES ${placeholders}`,
+      params
+    );
 
     return { message: '图层权限分配成功' };
   }
@@ -110,16 +134,22 @@ export class RoleService {
     const role = await this.roleRepo.findOne({ where: { id: roleId } });
     if (!role) throw new NotFoundException('角色不存在');
 
-    // 查询关联的权限信息
-    const layers = await this.roleRepo.manager.query(
-      `SELECT rl.layer_id as "layerId", rl.can_read as "canRead", rl.can_edit as "canEdit",
-              l.name, l.type, l.group_name as "groupName"
-       FROM sys_role_layer rl
-       LEFT JOIN map_layer l ON l.id = rl.layer_id
-       WHERE rl.role_id = $1`,
-      [roleId],
-    );
+    // 使用 QueryBuilder 精确控制 JOIN，避免嵌套 relations 加载异常
+    const roleLayers = await this.roleLayerRepo.createQueryBuilder('rl')
+      .leftJoinAndSelect('rl.layer', 'layer')
+      .leftJoinAndSelect('layer.group', 'group')
+      .where('rl.role_id = :roleId', { roleId })
+      .getMany();
 
-    return layers;
+    return roleLayers
+      .filter(rl => rl.layer) // 过滤掉 layer 已被删除的孤儿记录
+      .map(rl => ({
+        layerId: rl.layer.id,
+        canRead: rl.canRead,
+        canEdit: rl.canEdit,
+        name: rl.layer.name,
+        type: rl.layer.type,
+        groupName: rl.layer.group?.name || '默认分组',
+      }));
   }
 }

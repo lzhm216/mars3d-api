@@ -19,8 +19,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any) {
+    const userId = Number(payload.sub);
+    if (!payload.sub || isNaN(userId)) {
+      throw new UnauthorizedException('无效的凭证');
+    }
+
     const user = await this.userRepo.findOne({
-      where: { id: payload.sub },
+      where: { id: userId },
       relations: ['roles', 'roles.permissions'],
     });
 

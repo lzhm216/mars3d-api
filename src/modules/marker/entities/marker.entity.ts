@@ -4,7 +4,11 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import { SysUser } from '../../user/entities/user.entity';
+import { MapLayer } from '../../layer/entities/layer.entity';
 
 @Entity('map_marker')
 export class MapMarker {
@@ -13,6 +17,10 @@ export class MapMarker {
 
   @Column({ name: 'userId', type: 'int', comment: '所属用户ID' })
   userId: number;
+
+  @ManyToOne(() => SysUser, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user: SysUser;
 
   @Column({ length: 100, nullable: true, comment: '标记名称' })
   name: string;
@@ -34,6 +42,10 @@ export class MapMarker {
 
   @Column({ name: 'layerId', type: 'int', nullable: true, comment: '归属图层ID' })
   layerId: number;
+
+  @ManyToOne(() => MapLayer, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'layerId' })
+  layer: MapLayer;
 
   @Column({ type: 'smallint', default: 1, comment: '状态: 1启用 0禁用' })
   status: number;

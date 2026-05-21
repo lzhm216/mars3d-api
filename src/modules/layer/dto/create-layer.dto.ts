@@ -24,10 +24,19 @@ export class CreateLayerDto {
   @IsInt()
   groupId?: number;
 
-  @ApiPropertyOptional({ description: '分组名称' })
+  @ApiPropertyOptional({ description: '图层分类: terrain/basemap/layer', default: 'layer' })
   @IsOptional()
   @IsString()
-  groupName?: string;
+  category?: string;
+
+  @ApiPropertyOptional({ description: '父级图层ID' })
+  @IsOptional()
+  @IsInt()
+  pid?: number;
+
+  @ApiPropertyOptional({ description: '默认加载/显示' })
+  @IsOptional()
+  show?: boolean;
 
   @ApiPropertyOptional({ description: '排序', default: 0 })
   @IsOptional()
@@ -60,10 +69,19 @@ export class UpdateLayerDto {
   @IsInt()
   groupId?: number;
 
-  @ApiPropertyOptional({ description: '分组名称' })
+  @ApiPropertyOptional({ description: '图层分类: terrain/basemap/layer' })
   @IsOptional()
   @IsString()
-  groupName?: string;
+  category?: string;
+
+  @ApiPropertyOptional({ description: '父级图层ID' })
+  @IsOptional()
+  @IsInt()
+  pid?: number;
+
+  @ApiPropertyOptional({ description: '默认加载/显示' })
+  @IsOptional()
+  show?: boolean;
 
   @ApiPropertyOptional({ description: '排序' })
   @IsOptional()
